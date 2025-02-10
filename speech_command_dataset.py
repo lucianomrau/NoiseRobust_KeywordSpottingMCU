@@ -11,15 +11,47 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(seed)
 
 
+class ProcessAudio():
+    def __init__(self,sample_rate,num_samples):
+        self._sample_rate = sample_rate
+        self._num_samples = num_samples
+    
+    def _mix_down_if_necessary(self,audio_signal):
+        if audio_signal.shape[0] > 1:
+            audio_signal = torch.mean(audio_signal, dim=0, keepdim=True)
+        return audio_signal
+    
+    def _resample_if_necessary(self, audio_signal, sr):
+        if sr!= self._sample_rate:
+            resampler = torchaudio.transforms.Resample(sr, self._sample_rate)
+            audio_signal = resampler(audio_signal)
+        return audio_signal
 
-class AudioDataset(Dataset):
+    def _cut_if_necessary(self, audio_signal):
+        if audio_signal.shape[1] > self._num_samples:
+            audio_signal = audio_signal[:, :self._num_samples]
+        return audio_signal
+
+    def _right_pad_if_necessary(self, audio_signal):
+        length_signal = audio_signal.shape[1]
+        if length_signal < self._num_samples:
+            num_missing_samples = self._num_samples - length_signal
+            last_dim_padding = (0, num_missing_samples)
+            audio_signal = torch.nn.functional.pad(audio_signal, last_dim_padding)
+        return audio_signal
+
+
+
+class AudioDataset(Dataset,ProcessAudio):
     def __init__(self, audio_path, audio_list,sample_rate,duration_seconds,keywords,device):
+        num_samples = int(duration_seconds*sample_rate)
+        super().__init__(sample_rate,num_samples)
+
         self.all_keywords = sorted(keywords)
         self._device = device
         self.keywords = sorted([word for word in keywords if word not in ['silence', 'unknown']])
         self.__audio_list = audio_list
         self._audio_path = [f"{str(audio_path)}{audiofile}" for audiofile in audio_list]
-        self._num_samples = int(duration_seconds*sample_rate)
         self._sample_rate = sample_rate
 
         
@@ -39,13 +71,7 @@ class AudioDataset(Dataset):
         signal = self._cut_if_necessary(signal)
         signal = self._right_pad_if_necessary(signal)
         return signal, label
-    
-    def _resample_if_necessary(self, signal, sr):
-        if sr!= self._sample_rate:
-            resampler = torchaudio.transforms.Resample(sr, self._sample_rate)
-            signal = resampler(signal)
-        return signal
-    
+
 
     def _encode_label(self,label):
         return torch.tensor(self.all_keywords.index(label))
@@ -70,19 +96,6 @@ class AudioDataset(Dataset):
             return label
         else:
             return 'unknown'
-        
-    def _cut_if_necessary(self, signal):
-        if signal.shape[1] > self._num_samples:
-            signal = signal[:, :self._num_samples]
-        return signal
-
-    def _right_pad_if_necessary(self, signal):
-        length_signal = signal.shape[1]
-        if length_signal < self._num_samples:
-            num_missing_samples = self._num_samples - length_signal
-            last_dim_padding = (0, num_missing_samples)
-            signal = torch.nn.functional.pad(signal, last_dim_padding)
-        return signal
 
 
 
