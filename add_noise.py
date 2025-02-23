@@ -17,21 +17,16 @@ class AddNoise(ProcessAudio):
     The mixing is additive.
     TODO: Add other mix scenarios: convolutive, reverberance, etc.
     """
-    def __init__(self,noise_type,snr_db,transformation,device,sample_rate,duration_seconds,dataset):
+    def __init__(self,noise_type,snr_db,transformation,device,sample_rate,duration_seconds,dataset,target_set):
         num_samples = int(duration_seconds*sample_rate)
         
         super().__init__(sample_rate,num_samples)
         self.noise_type = noise_type
         self.snr_db = snr_db
         self._device = device
-        # self._sample_rate = sample_rate
         
         self.mel_spectrogram = transformation.to(device)
-        # white, pink, babble and classes from the UrbanSoundsDataset
-        self.noise_type_allowed = ['white',
-                                   'pink',
-                                   'babble',
-                                   'air_conditioner_background',
+        self.__urbansound_allowed = ['air_conditioner_background',
                                    'car_horn_background',
                                    'children_playing_background',
                                    'dog_bark_background',
@@ -51,11 +46,16 @@ class AddNoise(ProcessAudio):
                                     'jackhammer_foreground',
                                     'siren_foreground',
                                     'street_music_foreground']
-        assert self.noise_type in self.noise_type_allowed, "Noise type not allowed"  # TODO: implement more noise types
-        self.noise_signal = self._load_noise_signal()
+        self.__demand_allowed = ['kitchen','living','office']
+
+        # white, pink, babble, and classes from the UrbanSoundsDataset
+        self.__noise_type_allowed = ['white','pink','babble'] + self.__urbansound_allowed + self.__demand_allowed
+        assert self.noise_type in self.__noise_type_allowed, "Noise type not allowed"  # TODO: implement more noise types
+        # self.noise_signal = self._load_noise_signal(target_set)
+        self._target_set = target_set
         self.dataset = dataset
     
-    def _load_noise_signal(self):
+    def _load_noise_signal(self,target_set):
 
         if self.noise_type == 'white':
             noise_signal = self.__white_noise()
@@ -63,8 +63,10 @@ class AddNoise(ProcessAudio):
             noise_signal = self.__pink_noise()
         elif self.noise_type == 'babble':
             noise_signal = self.__babble_noise()
-        else:
+        elif self.noise_type in self.__urbansound_allowed:
             noise_signal = self.__urban_sounds_noise()
+        elif self.noise_type in self.__demand_allowed:
+            noise_signal = self.__demand_noise()
         return noise_signal
     
     def __white_noise(self):
@@ -93,15 +95,41 @@ class AddNoise(ProcessAudio):
     
     def __babble_noise(self):
         noise,sr = torchaudio.load("./noise/noisex-92/babble.wav")
-        
+        noise = self._random_start(noise)
         noise = self._resample_if_necessary(noise, sr)
         noise = noise.to(self._device)
         noise = self._cut_if_necessary(noise)
         noise = self._right_pad_if_necessary(noise)
         return noise
 
+    def __demand_noise(self): #TODO: read the wav file name from the csv file
+        if self._target_set=="train" or self._target_set=="validation":
+            wav_dict = {
+                    'kitchen' : "DKITCHEN/ch01.wav",
+                    'office' : "OOFFICE/ch01.wav",
+                    'living' : "DLIVING/ch01.wav",
+                    }
+        elif self._target_set=="test":
+            wav_dict = {
+                    'kitchen' : "DKITCHEN/ch16.wav",
+                    'office' : "OOFFICE/ch16.wav",
+                    'living' : "DLIVING/ch16.wav",
+            }
+        else:
+            raise Exception("Expected target_set to be 'train'/'validation'/'test'")
+
+        noise,sr = torchaudio.load("./noise/Demand/" + wav_dict[self.noise_type])
+        noise = self._random_start(noise)
+        noise = self._resample_if_necessary(noise, sr)
+        noise = noise.to(self._device)
+        noise = self._cut_if_necessary(noise)
+        noise = self._right_pad_if_necessary(noise)
+        noise = self._mix_down_if_necessary(noise)
+        return noise
+
     def __urban_sounds_noise(self): #TODO: read the wav file name from the csv file
-        wav_dict = {
+        if self._target_set=="train" or self._target_set=="validation":
+            wav_dict = {
                     'air_conditioner_background' : "177621-0-0-0.wav",
                     'car_horn_background' : "132073-1-0-0.wav",
                     'children_playing_background' : "135776-2-0-32.wav",
@@ -123,9 +151,34 @@ class AddNoise(ProcessAudio):
                     'siren_foreground' : "157867-8-0-0.wav",
                     'street_music_foreground' : "108041-9-0-11.wav"
                     }
-        
+        elif self._target_set=="test":
+            wav_dict = {
+                    'air_conditioner_background' : "177621-0-0-100.wav",
+                    'car_horn_background' : "132073-1-1-0.wav",
+                    'children_playing_background' : "135776-2-0-37.wav",
+                    'dog_bark_background' : "102105-3-0-0.wav",
+                    'drilling_background' : "118278-4-0-1.wav",
+                    'engine_idling_background' : "46918-5-0-2.wav",
+                    'gun_shot_background' : "135527-6-1-0.wav",
+                    'jackhammer_background' : "180937-7-3-1.wav",
+                    'siren_background' : "106905-8-0-1.wav",
+                    'street_music_background' : "132016-9-0-11.wav",
+                    'air_conditioner_foreground' : "13230-0-0-1.wav",
+                    'car_horn_foreground' : "153057-1-0-0.wav",
+                    'children_playing_foreground' : "105415-2-0-15.wav",
+                    'dog_bark_foreground' : "101415-3-0-3.wav",
+                    'drilling_foreground' : "103199-4-0-3.wav",
+                    'engine_idling_foreground' : "103258-5-0-10.wav",
+                    'gun_shot_foreground' : "106955-6-0-0.wav",
+                    'jackhammer_foreground' : "103074-7-1-0.wav",
+                    'siren_foreground' : "157867-8-0-10.wav",
+                    'street_music_foreground' : "108041-9-0-2.wav"
+            }
+        else:
+            raise Exception("Expected target_set to be 'train'/'validation'/'test'")
+
         noise,sr = torchaudio.load("./noise/UrbanSound8K/" + wav_dict[self.noise_type])
-        
+        noise = self._random_start(noise)
         noise = self._resample_if_necessary(noise, sr)
         noise = noise.to(self._device)
         noise = self._cut_if_necessary(noise)
@@ -133,12 +186,21 @@ class AddNoise(ProcessAudio):
         noise = self._mix_down_if_necessary(noise)
         return noise
 
+    def _random_start(self,signal):
+        audio_length = len(signal)
+        if audio_length >= self._num_samples:
+            start_point = torch.randint(0, audio_length - self._sample_rate-1, (1,),generator=g_cpu)
+            return signal[:, start_point:self._num_samples]
+        else:
+            return signal
 
+            
 
     def aditive_noise(self,signal):
+        noise = self._load_noise_signal(self._target_set)
         # Add noise to the signal
         signal_with_noise = torchaudio.functional.add_noise(waveform=torch.squeeze(signal),
-                                                            noise=torch.squeeze(self.noise_signal),
+                                                            noise=torch.squeeze(noise),
                                                             snr=torch.tensor(self.snr_db),
                                                             lengths=None)
         signal_with_noise = torch.unsqueeze(signal_with_noise, 0)
@@ -152,3 +214,7 @@ class AddNoise(ProcessAudio):
         mel_spectrogram = self.aditive_noise(waveform)
         return mel_spectrogram, label
         
+
+    
+    def __len__(self):
+        return len(self.dataset)
