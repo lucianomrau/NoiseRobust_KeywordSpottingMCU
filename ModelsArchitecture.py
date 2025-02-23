@@ -8,8 +8,9 @@ class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
         # Base vector multiplier
-        base_vector = [1, 2, 2, 3, 3, 1]
+        base_vector = [1, 2, 2, 3, 3]
         multiplier = 64
+        num_classes = 12
 
         # Define convolutional layers with batch normalization and ReLU
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=base_vector[0]*multiplier, kernel_size=3, stride=2, padding=1)
@@ -27,11 +28,10 @@ class ConvNet(nn.Module):
         self.conv5 = nn.Conv2d(in_channels=base_vector[3]*multiplier, out_channels=base_vector[4]*multiplier, kernel_size=1, stride=1)
         self.bn5 = nn.BatchNorm2d(base_vector[4]*multiplier)
 
-        self.conv6 = nn.Conv2d(in_channels=base_vector[4]*multiplier, out_channels=base_vector[5]*multiplier, kernel_size=1, stride=1)
-        self.bn6 = nn.BatchNorm2d(base_vector[5]*multiplier)
+        self.conv6 = nn.Conv2d(in_channels=base_vector[4]*multiplier, out_channels=num_classes, kernel_size=1, stride=1)
+        self.bn6 = nn.BatchNorm2d(num_classes)
 
-        # Fully connected layer for classification
-        self.fc = nn.Linear(base_vector[5]*multiplier, 12)  # Assuming 12 classes
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # Output size will be [batch_size, channels, 1, 1]
 
     def forward(self, x):
         # Pass through convolutional layers with BatchNorm and ReLU
@@ -43,10 +43,11 @@ class ConvNet(nn.Module):
         x = torch.relu(self.bn6(self.conv6(x)))
 
         # Global average pooling before the fully connected layer
-        x = torch.mean(x, dim=[2, 3])  # Global average pooling
-
-        # Pass through fully connected layer
-        x = self.fc(x)
+        x = self.avgpool(x)
+                         
+        # Remove dimensions
+        x = torch.squeeze(x, dim=[2, 3])
+        
         return x
     
 
