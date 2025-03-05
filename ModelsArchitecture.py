@@ -50,7 +50,19 @@ class ConvNet(nn.Module):
         
         return x
     
+class ConvNetWithFC(nn.Module):
+    def __init__(self, conv_net, num_classes=12):
+        super(ConvNetWithFC, self).__init__()
+        self.conv_net = conv_net
+        # Assuming the output of ConvNet is 12 channels (as per the last layer)
+        self.fc = nn.Linear(12, num_classes)  # Adjust num_classes as needed
 
+    def forward(self, x):
+        x = self.conv_net(x)  # Pass through ConvNet
+        x = x.view(x.size(0), -1)  # Flatten the output
+        x = self.fc(x)  # Pass through the fully connected layer
+        return x
+    
 
 # Custom function for binarizing weights using the straight-through estimator (STE)
 class _BinarizeSTE(torch.autograd.Function):
