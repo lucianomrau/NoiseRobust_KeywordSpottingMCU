@@ -5,7 +5,21 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_s
 import matplotlib.pyplot as plt
 
 # Training and validation loop with manual LR printout and metrics tracking
-def train_model(train_loader, val_loader, model,device,learning_rate,num_epochs=100):
+def train_model(train_loader, val_loader, model,device,learning_rate,num_epochs=100,verbose=0):
+    '''
+    Arguments:
+    ----------
+    train_loader:
+    val_loader:
+    model: model architecture
+    device: cuda or cpu
+    learning_rate: initial value
+    num_epochs:
+    verbose:
+        0: No verbose
+        1: Print the learning rate and metrics for the current epoch
+        2: plot the learning curves
+    '''
 
     # Define loss function and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -74,14 +88,16 @@ def train_model(train_loader, val_loader, model,device,learning_rate,num_epochs=
         val_accuracies.append(val_acc)
 
         # Print the learning rate and metrics for the current epoch
-        current_lr = scheduler.optimizer.param_groups[0]['lr']
-        print(f'Epoch {epoch+1}/{num_epochs}, '
-            f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
-            f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, '
-            f'Learning Rate: {current_lr:.6f}')
+        if verbose>0:
+            current_lr = scheduler.optimizer.param_groups[0]['lr']
+            print(f'Epoch {epoch+1}/{num_epochs}, '
+                f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
+                f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, '
+                f'Learning Rate: {current_lr:.6f}')
 
     # After training, plot the curves
-    plot_training_curves(train_losses, val_losses, train_accuracies, val_accuracies)
+    if verbose==2:
+        plot_training_curves(train_losses, val_losses, train_accuracies, val_accuracies)
 
 # Function to plot training and validation curves
 def plot_training_curves(train_losses, val_losses, train_accuracies, val_accuracies):

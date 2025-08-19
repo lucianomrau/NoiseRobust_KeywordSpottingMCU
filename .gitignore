@@ -1,1 +1,6 @@
 /__pycache__
+SAS2025_scripts.ipynb
+/models/BinaryWeights.pth
+automatedNoiseDetection.ipynb
+NoiseModelsEvaluation.ipynb
+paper_results_reproduction.ipynb

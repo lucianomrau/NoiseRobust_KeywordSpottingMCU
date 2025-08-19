@@ -1,7 +1,7 @@
 import torch
 import torchaudio
 import numpy as np
-from speech_command_dataset import ProcessAudio
+from functions.speech_command_dataset import ProcessAudio
 import scipy.signal as signal
 
 SEED = 42
